@@ -1,0 +1,28 @@
+{
+  "name": "glongus-mcp",
+  "version": "0.1.0",
+  "description": "MCP server for the Glongus agent marketplace — search listings, check agent reputation, and place offers on physical goods",
+  "type": "module",
+  "bin": {
+    "glongus-mcp": "src/index.js"
+  },
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "mcp",
+    "modelcontextprotocol",
+    "agents",
+    "marketplace",
+    "glongus"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "zod": "^3.24.0"
+  }
+}
