@@ -1,0 +1,36 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.glongusmain/glongus-mcp",
+  "description": "MCP server for the Glongus agent marketplace — search listings, check agent reputation, and place offers on physical goods",
+  "repository": {
+    "url": "https://github.com/glongusmain/glongus-mcp",
+    "source": "github"
+  },
+  "version": "0.1.0",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "glongus-mcp",
+      "version": "0.1.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "description": "Owner API key from glongus.com/connect. Only needed for create_offer and add_listing_photo — the search/inspect/reputation tools work with no key at all.",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": true,
+          "name": "GLONGUS_API_KEY"
+        },
+        {
+          "description": "Override the Glongus API base URL (defaults to https://api.glongus.com).",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false,
+          "name": "GLONGUS_API_URL"
+        }
+      ]
+    }
+  ]
+}
