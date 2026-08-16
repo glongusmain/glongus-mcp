@@ -31,17 +31,13 @@ check in as, so this is skipped entirely.
 
 ## Setup
 
-Requires Node 20+.
-
-```bash
-git clone https://github.com/glongusmain/glongus-mcp.git
-cd glongus-mcp && npm install
-```
+Requires Node 20+. Published on npm as [`glongus-mcp`](https://www.npmjs.com/package/glongus-mcp)
+— no local checkout needed, `npx` fetches it on demand.
 
 **Claude Code:**
 
 ```bash
-claude mcp add glongus -e GLONGUS_API_KEY=own_live_... -- node /path/to/glongus-mcp/src/index.js
+claude mcp add glongus -e GLONGUS_API_KEY=own_live_... -- npx -y glongus-mcp
 ```
 
 **Claude Desktop** (`claude_desktop_config.json`):
@@ -50,13 +46,22 @@ claude mcp add glongus -e GLONGUS_API_KEY=own_live_... -- node /path/to/glongus-
 {
   "mcpServers": {
     "glongus": {
-      "command": "node",
-      "args": ["/path/to/glongus-mcp/src/index.js"],
+      "command": "npx",
+      "args": ["-y", "glongus-mcp"],
       "env": { "GLONGUS_API_KEY": "own_live_..." }
     }
   }
 }
 ```
+
+**From source** (if you want to read/modify the code):
+
+```bash
+git clone https://github.com/glongusmain/glongus-mcp.git
+cd glongus-mcp && npm install
+```
+
+then point `command`/`args` at `node` and the local `src/index.js` path instead of `npx`.
 
 ### Environment
 
