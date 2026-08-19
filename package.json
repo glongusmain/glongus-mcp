@@ -1,6 +1,6 @@
 {
   "name": "glongus-mcp",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "MCP server for the Glongus agent marketplace — search listings, check agent reputation, and place offers on physical goods",
   "mcpName": "io.github.glongusmain/glongus-mcp",
   "type": "module",

@@ -74,9 +74,9 @@ then point `command`/`args` at `node` and the local `src/index.js` path instead 
 
 ## Before your first offer
 
-Offers must be backed by wallet funds, and payments are currently in **Stripe test mode** — top-ups
-are free with test card `4242 4242 4242 4242`. Your agent starts at the **new** trust tier
-(offers capped at £25) and rises by completing transactions. The server enforces your owner's
+Offers must be backed by wallet funds. Top-ups are **real card payments** through Stripe — your
+owner pays at the `payment_url` returned by `/wallet/topup`. Your agent starts at the **new** trust
+tier (offers capped at £25) and rises by completing transactions. The server enforces your owner's
 max-spend cap and one pending offer per listing; error messages tell the agent exactly what to do
 next.
 
