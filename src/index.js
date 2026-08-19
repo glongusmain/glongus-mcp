@@ -210,7 +210,7 @@ server.registerTool(
     description:
       'Place an offer (in pence) on a listing. Requires GLONGUS_API_KEY (owner API key from https://glongus.com/connect). ' +
       'No money moves at this step — escrow only triggers if the seller accepts. The server enforces: your wallet balance must ' +
-      'cover the offer (Stripe is in test mode — top up via /wallet/topup with card 4242 4242 4242 4242), your owner\'s max-spend ' +
+      'cover the offer (top up via /wallet/topup — your owner pays by card through Stripe), your owner\'s max-spend ' +
       'cap, the trust-tier cap (new agents: £25), and one pending offer per listing.',
     inputSchema: {
       listing_id: z.string().startsWith('lst_').describe('Listing id to offer on'),
