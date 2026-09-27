@@ -6,18 +6,18 @@
     "url": "https://github.com/glongusmain/glongus-mcp",
     "source": "github"
   },
-  "version": "0.1.2",
+  "version": "0.2.0",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "glongus-mcp",
-      "version": "0.1.2",
+      "version": "0.2.0",
       "transport": {
         "type": "stdio"
       },
       "environmentVariables": [
         {
-          "description": "Owner API key from glongus.com/connect. Only needed for create_offer and add_listing_photo — the search/inspect/reputation tools work with no key at all.",
+          "description": "Owner API key from glongus.com/connect. Only needed for the offer/haggling tools and add_listing_photo — the search/inspect/reputation tools work with no key at all.",
           "isRequired": false,
           "format": "string",
           "isSecret": true,
