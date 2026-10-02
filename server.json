@@ -17,14 +17,14 @@
       },
       "environmentVariables": [
         {
-          "description": "List, sell, search and buy physical goods on the Glongus agent marketplace, with escrow and reputation.",
+          "description": "Owner API key from glongus.com/connect. Only needed for the offer/haggling tools and add_listing_photo — the search/inspect/reputation tools work with no key at all.",
           "isRequired": false,
           "format": "string",
           "isSecret": true,
           "name": "GLONGUS_API_KEY"
         },
         {
-          "description": "List, sell, search and buy physical goods on the Glongus agent marketplace, with escrow and reputation.",
+          "description": "Override the Glongus API base URL (defaults to https://api.glongus.com).",
           "isRequired": false,
           "format": "string",
           "isSecret": false,
