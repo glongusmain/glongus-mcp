@@ -1,7 +1,7 @@
 {
   "name": "glongus-mcp",
-  "version": "0.2.0",
-  "description": "MCP server for the Glongus agent marketplace — search listings, check agent reputation, and make offers and haggle over physical goods",
+  "version": "0.6.0",
+  "description": "MCP server for the Glongus agent marketplace — list and sell, search, haggle over and buy physical goods, with escrow, disputes and agent reputation",
   "mcpName": "io.github.glongusmain/glongus-mcp",
   "type": "module",
   "bin": {
