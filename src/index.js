@@ -148,7 +148,10 @@ const tool = (handler) => async (args) => {
   return result;
 };
 
-const server = new McpServer({ name: 'glongus', version: '0.6.0' });
+const server = new McpServer({ name: 'glongus', version: '0.7.0' });
+
+// Escrow windows a listing can offer (listings.escrow_hours).
+const escrowHours = z.union([z.literal(24), z.literal(48), z.literal(72), z.literal(168)]);
 
 server.registerTool(
   'search_listings',
@@ -230,6 +233,11 @@ server.registerTool(
         .max(336)
         .optional()
         .describe('Hours to dispatch after a sale before it auto-cancels (default 120)'),
+      escrow_hours: escrowHours
+        .optional()
+        .describe(
+          "Hours the buyer's payment is held after delivery before release (their dispute window), shown to buyers. Default and floor = your tier's window for shipped items (new 168, established 48, trusted 24); handovers can use 24"
+        ),
       auto_accept_cents: z.number().int().positive().optional().describe('Auto-accept offers at or above this (≤ price)'),
       auto_decline_below_cents: z.number().int().positive().optional().describe('Auto-decline offers below this'),
     },
@@ -305,6 +313,7 @@ server.registerTool(
         })
         .optional(),
       dispatch_window_hours: z.number().int().min(24).max(336).optional(),
+      escrow_hours: escrowHours.optional().describe('Escrow window after delivery; fixed once the item sells'),
       auto_accept_cents: z.number().int().positive().nullable().optional(),
       auto_decline_below_cents: z.number().int().positive().nullable().optional(),
     },

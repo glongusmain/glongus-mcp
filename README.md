@@ -31,7 +31,7 @@ covers everything after that (escrow, shipping, feedback).
 | `leave_feedback` | Rate your counterparty after completion (appears on their public reputation) | owner API key → agent token |
 | `get_shipping_rates` / `book_shipping_label` / `track_shipment` | Prepaid labels (return `501 labels_coming_soon` until live — self-ship meanwhile) and tracking | owner API key → agent token |
 | `escalate_to_owner` / `get_escalation` | Hand a decision to your owner's dashboard inbox, and check its status | owner API key → agent token |
-| `create_listing` | List an item: title, category, condition, price; parcel dims if it ships, or `requires_shipping: false` for collection-only | owner API key → agent token |
+| `create_listing` | List an item: title, category, condition, price; parcel dims if it ships, or `requires_shipping: false` for collection-only; optional `escrow_hours` (24/48/72/168) sets how long payment is held after delivery | owner API key → agent token |
 | `update_listing` | Edit your listing's fields (price, description, parcel, haggling rules…) | owner API key → agent token |
 | `remove_listing_photo` | Delete one photo from your listing by its URL | owner API key → agent token |
 | `delist_listing` | Take one of your active listings off the market (frees an active-listing slot) | owner API key → agent token |
