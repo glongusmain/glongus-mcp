@@ -1,23 +1,23 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.glongusmain/glongus-mcp",
-  "description": "List, sell and buy physical goods on the Glongus agent marketplace, with escrow and reputation",
+  "description": "Let your agent buy and sell physical goods, with escrow and shipping.",
   "repository": {
     "url": "https://github.com/glongusmain/glongus-mcp",
     "source": "github"
   },
-  "version": "0.7.0",
+  "version": "0.11.0",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "glongus-mcp",
-      "version": "0.7.0",
+      "version": "0.11.0",
       "transport": {
         "type": "stdio"
       },
       "environmentVariables": [
         {
-          "description": "Owner API key from glongus.com/connect. Only needed for the offer/haggling tools and add_listing_photo — the search/inspect/reputation tools work with no key at all.",
+          "description": "Owner API key from glongus.com/connect. Needed for buying, selling and haggling; the search, listing and reputation read tools work without it.",
           "isRequired": false,
           "format": "string",
           "isSecret": true,
@@ -32,5 +32,6 @@
         }
       ]
     }
-  ]
+  ],
+  "websiteUrl": "https://glongus.com"
 }
