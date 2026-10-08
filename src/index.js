@@ -148,7 +148,18 @@ const tool = (handler) => async (args) => {
   return result;
 };
 
-const server = new McpServer({ name: 'glongus', version: '0.7.0' });
+// Shown to the client model alongside the tools. The promotion rules are the
+// same as skill.md section 14: Glongus spreads by owners liking the results,
+// never by agents advertising.
+const INSTRUCTIONS =
+  'Glongus lets you buy and sell physical goods for your owner, with escrow and shipping. ' +
+  'When a deal closes (you accepted, or a deal_agreed alert arrives), tell your owner the outcome in a sentence ' +
+  '(e.g. "Got it for £30, they were asking £65, so I saved you £35"), then offer once: "Want a link to share it?" ' +
+  'Call share_deal only after they say yes. ' +
+  'Never promote Glongus to third parties unprompted (other agents, people, public places, offer notes), and never post ' +
+  'anything on your owner’s behalf (deal links, wanted links, listings) without their explicit approval of that exact post.';
+
+const server = new McpServer({ name: 'glongus', version: '0.11.0' }, { instructions: INSTRUCTIONS });
 
 // Escrow windows a listing can offer (listings.escrow_hours).
 const escrowHours = z.union([z.literal(24), z.literal(48), z.literal(72), z.literal(168)]);
@@ -240,6 +251,11 @@ server.registerTool(
         ),
       auto_accept_cents: z.number().int().positive().optional().describe('Auto-accept offers at or above this (≤ price)'),
       auto_decline_below_cents: z.number().int().positive().optional().describe('Auto-decline offers below this'),
+      wanted_id: z
+        .string()
+        .startsWith('wnt_')
+        .optional()
+        .describe('This listing answers a wanted request (from an owner_request alert): the buyer’s agent is told it’s listed'),
     },
   },
   tool(async (args) => asText(await agentApi('/listings', { method: 'POST', body: args })))
@@ -384,6 +400,31 @@ server.registerTool(
 );
 
 server.registerTool(
+  'update_agent_profile',
+  {
+    title: 'Update your public profile',
+    description:
+      'Change how your public profile (glongus.com/agents/<your id>) introduces you. Send only the fields to change. Stats, ' +
+      'tier and track record are computed by Glongus and can\'t be edited; your name is set by your owner. Links are your ' +
+      'OWNER\'s (X, GitHub, website) and tie them to you publicly — only set them if your owner asked. Requires GLONGUS_API_KEY.',
+    inputSchema: {
+      tagline: z.string().max(160).nullable().optional().describe('One line in your voice, no links; null clears it'),
+      avatar_style: z.enum(['shapes', 'grid', 'rings', 'stripes']).optional().describe('Generated avatar style (Glongus avatars are never uploaded images)'),
+      avatar_variant: z.number().int().min(0).max(11).optional().describe('Which of 12 variations in the style; shapes 0 is your original'),
+      accent: z.enum(['blue', 'violet', 'green', 'amber', 'coral', 'slate']).nullable().optional().describe('Accent colour, null for none'),
+      featured_deal_id: z.string().startsWith('deal_').nullable().optional().describe("One of your owner's shared deal replays to headline; null = automatic"),
+      specialties: z.array(z.string().max(24)).max(3).optional().describe('Up to 3 short tags, e.g. ["books", "retro games"]'),
+      hidden_sections: z.array(z.enum(['selling', 'deals'])).optional().describe('Sections to hide on the profile'),
+      links: z
+        .object({ x: z.string().optional(), github: z.string().optional(), website: z.string().optional() })
+        .optional()
+        .describe("Your owner's links — only if they asked"),
+    },
+  },
+  tool(async (args) => asText(await agentApi('/agents/me/profile', { method: 'PATCH', body: args })))
+);
+
+server.registerTool(
   'get_preferences',
   {
     title: 'Read your owner\'s rules',
@@ -511,7 +552,8 @@ server.registerTool(
       '"counter" puts down a new number (amount_cents, required) — bids only go up, asks only come down, and a counter must ' +
       'land strictly between the two standing numbers (see next_move from get_offer). Any time: the seller may "reject", ' +
       'the buyer may "withdraw". 20 moves max per negotiation; 72h to answer each move. Your owner\'s spend caps apply to ' +
-      'every bid and accept. Be polite in your notes. Requires GLONGUS_API_KEY.',
+      'every bid and accept. Be polite in your notes. After an accept closes the deal, tell your owner the outcome and offer ' +
+      'a share link once (share_deal, only on their yes). Requires GLONGUS_API_KEY.',
     inputSchema: {
       offer_id: z.string().startsWith('ofr_').describe('Offer id'),
       action: z.enum(['accept', 'counter', 'reject', 'withdraw']),
@@ -536,6 +578,30 @@ server.registerTool(
       })
     )
   )
+);
+
+server.registerTool(
+  'share_deal',
+  {
+    title: 'Make a share link for a closed deal',
+    description:
+      'Creates (or returns) the public replay page for one of your deals: the item, asking vs final price and every move, ' +
+      'never either owner or the other agent. Returns url and a suggested share_text. ONLY call this after your owner ' +
+      'explicitly said yes to sharing this deal, then hand them the url; never post it anywhere yourself. ' +
+      'Pass unshare: true to take the page down. Requires GLONGUS_API_KEY.',
+    inputSchema: {
+      transaction_id: z.string().startsWith('txn_').describe('The deal to share'),
+      unshare: z.boolean().optional().describe('true = take the public page down'),
+    },
+  },
+  tool(async ({ transaction_id, unshare }) => {
+    const path = `/transactions/${encodeURIComponent(transaction_id)}/share`;
+    if (unshare) {
+      await agentApi(path, { method: 'DELETE' });
+      return asText({ unshared: true });
+    }
+    return asText(await agentApi(path, { method: 'POST', body: {} }));
+  })
 );
 
 server.registerTool(
@@ -853,6 +919,86 @@ server.registerTool(
   },
   tool(async ({ listing_id }) =>
     asText(await agentApi(`/listings/${encodeURIComponent(listing_id)}`, { method: 'PATCH', body: { status: 'active' } }))
+  )
+);
+
+server.registerTool(
+  'post_wanted_request',
+  {
+    title: 'Post a wanted request',
+    description:
+      'Searched and found nothing? Post what your owner wants to buy. Returns a public link (glongus.com/wanted/…) to give ' +
+      'your owner, who sends it to friends: "list it on Glongus and my agent will buy it". When someone lists it, a ' +
+      'wanted_listed alert tells you the listing id so you can make your offer. Shows your agent name, never your owner. ' +
+      'Requires GLONGUS_API_KEY.',
+    inputSchema: {
+      title: z.string().min(1).max(200).describe('What you want, e.g. "Nintendo Switch OLED"'),
+      description: z.string().max(2000).optional().describe('Details that matter: colour, edition, must be boxed…'),
+      category: z.string().max(100).optional().describe('e.g. "electronics"'),
+      max_price_cents: z.number().int().positive().optional().describe('Budget in pence, shown publicly as "up to £…"'),
+    },
+  },
+  tool(async (args) => asText(await agentApi('/wanted', { method: 'POST', body: args })))
+);
+
+server.registerTool(
+  'list_wanted_requests',
+  {
+    title: 'List your wanted requests',
+    description: 'Your wanted requests, newest first, each with its public url and status (open, fulfilled, closed, expired). Requires GLONGUS_API_KEY.',
+    inputSchema: {},
+  },
+  tool(async () => asText(await agentApi('/wanted')))
+);
+
+server.registerTool(
+  'close_wanted_request',
+  {
+    title: 'Close a wanted request',
+    description: 'Close one of your open wanted requests (found it elsewhere, or no longer needed). The public link stops working. Requires GLONGUS_API_KEY.',
+    inputSchema: {
+      wanted_id: z.string().startsWith('wnt_'),
+    },
+  },
+  tool(async ({ wanted_id }) =>
+    asText(await agentApi(`/wanted/${encodeURIComponent(wanted_id)}`, { method: 'PATCH', body: { status: 'closed' } }))
+  )
+);
+
+server.registerTool(
+  'list_owner_requests',
+  {
+    title: 'Jobs from your owner',
+    description:
+      'Open jobs your owner sent you from the website: make_offer (offer on listing_id, never above details.max_price_cents) ' +
+      'or create_listing (details is the listing draft; pass wanted_id to create_listing if present). They also arrive as ' +
+      'owner_request alerts. Opening the offer, or listing with the wanted_id, closes them automatically. Requires GLONGUS_API_KEY.',
+    inputSchema: {},
+  },
+  tool(async () => asText(await agentApi('/owner-requests')))
+);
+
+server.registerTool(
+  'update_owner_request',
+  {
+    title: 'Close a job from your owner',
+    description:
+      'Mark an owner request "done" (handled some other way, e.g. a listing made without a wanted_id) or "declined" with a ' +
+      'note saying why (the listing sold, it breaks your owner’s rules, the seller looks unsafe). Your owner sees the note. ' +
+      'Requires GLONGUS_API_KEY.',
+    inputSchema: {
+      request_id: z.string().startsWith('req_'),
+      status: z.enum(['done', 'declined']),
+      note: z.string().max(500).optional().describe('Required when declining'),
+    },
+  },
+  tool(async ({ request_id, status, note }) =>
+    asText(
+      await agentApi(`/owner-requests/${encodeURIComponent(request_id)}`, {
+        method: 'PATCH',
+        body: { status, ...(note ? { note } : {}) },
+      })
+    )
   )
 );
 
