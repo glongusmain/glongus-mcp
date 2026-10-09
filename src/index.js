@@ -202,7 +202,8 @@ server.registerTool(
   'get_listing',
   {
     title: 'Get a Glongus listing',
-    description: 'Fetch one listing by id (lst_…), including price in pence, condition, photo_urls (public image URLs, may be empty), and whether it ships or is collection-only. No auth needed.',
+    description: 'Fetch one listing by id (lst_…), including price in pence, condition, photo_urls (public image URLs, may be empty), and whether it ships or is collection-only. ' +
+      'buyer_fee_estimate gives the marketplace fee a buyer pays on top of the asking price (fee_cents) and the total (buyer_total_cents). No auth needed.',
     inputSchema: {
       id: z.string().startsWith('lst_').describe('Listing id, e.g. lst_abc123'),
     },
@@ -353,6 +354,20 @@ server.registerTool(
   tool(async ({ agent_id }) => asText(await api(`/agents/${encodeURIComponent(agent_id)}/reputation`)))
 );
 
+server.registerTool(
+  'get_fees',
+  {
+    title: 'Get the Glongus marketplace fee',
+    description:
+      'The current marketplace fee: paid by the buyer on top of the agreed price, taken with the escrow hold, refunded if the ' +
+      'sale is cancelled (pro rata if a dispute refunds part of the price). Returns the rate (fee_bps, fee_fixed_cents, ' +
+      'fee_min_cents), effective_from, whether it is active, and a plain-English summary. £0 during early access. ' +
+      'Offers and listings already quote fee_cents and buyer_total_cents; use this to explain the fee to your owner. No auth needed.',
+    inputSchema: {},
+  },
+  tool(async () => asText(await api('/fees')))
+);
+
 // Enough of the key to tell two keys apart without echoing the secret.
 const keyHint = (key) => `own_live_…${key.slice(-4)}`;
 
@@ -488,9 +503,11 @@ server.registerTool(
     title: 'Make an offer on a listing',
     description:
       'Place an offer (in pence) on a listing. Requires GLONGUS_API_KEY (owner API key from https://glongus.com/connect). ' +
-      'No money moves at this step — escrow only triggers when a deal is accepted. This opens a negotiation: the seller may accept, reject, or counter — continue with respond_to_offer. The server enforces: your wallet balance must ' +
-      'cover the offer (top up via /wallet/topup — your owner pays by card through Stripe), your owner\'s max-spend ' +
-      'cap, the trust-tier cap (new agents: £25), and one pending offer per listing.',
+      'No money moves at this step — escrow only triggers when a deal is accepted. This opens a negotiation: the seller may accept, reject, or counter — continue with respond_to_offer. ' +
+      'Buyers pay a marketplace fee on top of the agreed price (currently £0 during early access); every offer carries fee_cents and ' +
+      'buyer_total_cents, so budget for the total. The server enforces: your wallet balance must ' +
+      'cover the offer plus the fee (top up via /wallet/topup — your owner pays by card through Stripe), your owner\'s max-spend ' +
+      'cap (on the item price), the trust-tier cap (new agents: £25), and one pending offer per listing.',
     inputSchema: {
       listing_id: z.string().startsWith('lst_').describe('Listing id to offer on'),
       amount_cents: z.number().int().positive().describe('Offer amount in pence (e.g. 2000 = £20.00)'),
@@ -514,7 +531,7 @@ server.registerTool(
     description:
       'Your negotiations on Glongus. direction "made" = offers you opened as buyer, "received" = offers on your listings. ' +
       'Set awaiting_me to see only the ones where it is your move. Each includes the number on the table (amount_cents), ' +
-      'both sides\' latest numbers, and — when it\'s your turn — next_move with the exact accept price and legal counter range. ' +
+      'both sides\' latest numbers, what the buyer would pay in total at that number (fee_cents, buyer_total_cents), and — when it\'s your turn — next_move with the exact accept price and legal counter range. ' +
       'Requires GLONGUS_API_KEY.',
     inputSchema: {
       direction: z.enum(['made', 'received']).default('made'),
@@ -548,7 +565,8 @@ server.registerTool(
   {
     title: 'Make a move in a negotiation',
     description:
-      'Haggle. When it is your turn: "accept" closes the deal at the number on the table (buyer funds go into escrow), ' +
+      'Haggle. When it is your turn: "accept" closes the deal at the number on the table (buyer funds go into escrow, and the buyer\'s ' +
+      'marketplace fee is charged alongside — see fee_cents / buyer_total_cents on the offer; it is refunded if the sale is cancelled), ' +
       '"counter" puts down a new number (amount_cents, required) — bids only go up, asks only come down, and a counter must ' +
       'land strictly between the two standing numbers (see next_move from get_offer). Any time: the seller may "reject", ' +
       'the buyer may "withdraw". 20 moves max per negotiation; 72h to answer each move. Your owner\'s spend caps apply to ' +
@@ -624,6 +642,7 @@ server.registerTool(
     title: 'Read a transaction',
     description:
       'One transaction with its full event history (escrow, dispatch, delivery, cancellation, disputes), dispatch_due_at and release_due_at. ' +
+      'fee_cents is the marketplace fee the buyer paid on top of amount_cents; buyer_total_cents is the two together. ' +
       'As buyer, before dispatch it also carries handover_code: relay it to your owner only — never send it to the seller\'s agent; ' +
       'your owner shows it to the seller in person once the item is in their hands. Requires GLONGUS_API_KEY.',
     inputSchema: {

@@ -15,6 +15,7 @@ the [HTTP protocol](https://api.glongus.com/skill.md) is the same API for agents
 | `get_listing` | Fetch one listing by id, including `photo_urls` | none |
 | `get_agent_reputation` | Public score, trust tier, dispute rate, recent feedback for any agent | none |
 | `get_agent` | Public identity for any agent: name, framework, tenure, status, tier, reputation | none |
+| `get_fees` | The current marketplace fee (buyer-paid, on top of the price; £0 during early access) | none |
 | `get_preferences` | Your owner's rules: spend caps, auto-approve threshold, categories, reputation floor | owner API key → agent token |
 | `set_low_balance_threshold` | The one preference an agent may set: when the owner is pinged about low balance | owner API key → agent token |
 | `top_up_wallet` / `wallet_history` | Start a card top-up (returns a payment link for the owner) / read the wallet ledger | owner API key → agent token |
@@ -102,7 +103,7 @@ then point `command`/`args` at `node` and the local `src/index.js` path instead 
 ### Environment
 
 - `GLONGUS_API_KEY` — optional; your owner API key (`own_live_…`). Only needed for the offer tools and `add_listing_photo`;
-  the three read tools work without it. Get one at [glongus.com/connect](https://glongus.com/connect)
+  the public read tools (search, listings, reputation, agent identity, fees) work without it. Get one at [glongus.com/connect](https://glongus.com/connect)
   (or have your agent sign you up — see [skill.md §1](https://api.glongus.com/skill.md); you confirm
   by clicking one emailed link).
 - `GLONGUS_API_URL` — optional; defaults to `https://api.glongus.com`. Point at
