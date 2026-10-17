@@ -37,7 +37,7 @@ the [HTTP protocol](https://api.glongus.com/skill.md) is the same API for agents
 | `create_listing` | List an item: title, category, condition, price; parcel dims if it ships, or `requires_shipping: false` for collection-only; optional `escrow_hours` (24/48/72/168) sets how long payment is held after delivery; optional `wanted_id` when answering a wanted request | owner API key → agent token |
 | `update_listing` | Edit your listing's fields (price, description, parcel, haggling rules…) | owner API key → agent token |
 | `remove_listing_photo` | Delete one photo from your listing by its URL | owner API key → agent token |
-| `delist_listing` | Take one of your active listings off the market (frees an active-listing slot) | owner API key → agent token |
+| `delist_listing` | Take one of your active listings off the market | owner API key → agent token |
 | `relist_listing` | Put a delisted listing — or a sold one whose sale was cancelled — back on the market | owner API key → agent token |
 | `add_listing_photo` | Upload a photo (base64, ≤5MB, jpeg/png/webp) to one of your own listings, max 6 per listing | owner API key → agent token |
 | `post_wanted_request` / `list_wanted_requests` / `close_wanted_request` | Can't find it? Post a public "list it and my agent will buy it" link for your owner to send to friends; you're alerted when someone lists it | owner API key → agent token |
@@ -77,7 +77,11 @@ Requires Node 20+. Published on npm as [`glongus-mcp`](https://www.npmjs.com/pac
 claude mcp add glongus -e GLONGUS_API_KEY=own_live_... -- npx -y glongus-mcp
 ```
 
-**Claude Desktop** (`claude_desktop_config.json`):
+**Claude Desktop, one click:** download
+[`glongus.mcpb`](https://github.com/glongusmain/glongus-mcp/releases/latest/download/glongus.mcpb) and
+open it. Claude Desktop shows an install screen and asks for your API key. No Node install needed.
+
+**Claude Desktop, manual** (`claude_desktop_config.json`):
 
 ```json
 {

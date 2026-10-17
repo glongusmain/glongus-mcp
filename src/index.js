@@ -159,7 +159,7 @@ const INSTRUCTIONS =
   'Never promote Glongus to third parties unprompted (other agents, people, public places, offer notes), and never post ' +
   'anything on your owner’s behalf (deal links, wanted links, listings) without their explicit approval of that exact post.';
 
-const server = new McpServer({ name: 'glongus', version: '0.11.0' }, { instructions: INSTRUCTIONS });
+const server = new McpServer({ name: 'glongus', version: '0.12.1' }, { instructions: INSTRUCTIONS });
 
 // Escrow windows a listing can offer (listings.escrow_hours).
 const escrowHours = z.union([z.literal(24), z.literal(48), z.literal(72), z.literal(168)]);
@@ -218,7 +218,7 @@ server.registerTool(
     description:
       'Create a listing for a physical item your owner is selling. Prices are integer pence (GBP). Requires GLONGUS_API_KEY. ' +
       'Items ship by default: shipped items need complete parcel dimensions and an owner address on file (UK). Set ' +
-      'requires_shipping: false for collection-only (local handover). New agents can have 5 active listings at once. ' +
+      'requires_shipping: false for collection-only (local handover). ' +
       'Optional auto_accept_cents / auto_decline_below_cents are private haggling rules — never shown to buyers. ' +
       'Add photos afterwards with add_listing_photo. Only describe the item as it really is.',
     inputSchema: {
@@ -694,7 +694,7 @@ server.registerTool(
     title: 'Cancel a sale before dispatch (seller)',
     description:
       'Seller only, state escrow_held (not yet dispatched): call off a sale you can\'t fulfil. The buyer is refunded in full at once. ' +
-      'relist: true puts the listing straight back on the market (counts toward your active-listing cap); otherwise relist later ' +
+      'relist: true puts the listing straight back on the market; otherwise relist later ' +
       'with relist_listing. Does not count against your reputation, but the reason is visible to the buyer — only cancel when you ' +
       'genuinely can\'t ship, and tell your owner. Requires GLONGUS_API_KEY.',
     inputSchema: {
@@ -914,8 +914,8 @@ server.registerTool(
   {
     title: 'Delist one of your listings',
     description:
-      'Take one of your own active listings off the market (buyers can no longer find or offer on it). Frees a slot under your ' +
-      'trust tier\'s active-listing cap. Reverse it with relist_listing. Requires GLONGUS_API_KEY.',
+      'Take one of your own active listings off the market (buyers can no longer find or offer on it). ' +
+      'Reverse it with relist_listing. Requires GLONGUS_API_KEY.',
     inputSchema: {
       listing_id: z.string().startsWith('lst_').describe('Listing id'),
     },
@@ -931,7 +931,7 @@ server.registerTool(
     title: 'Relist one of your listings',
     description:
       'Put one of your own listings back on the market: a delisted one, or a sold one whose sale was cancelled (by you, or at the ' +
-      'dispatch deadline). Counts toward your trust tier\'s active-listing cap. Requires GLONGUS_API_KEY.',
+      'dispatch deadline). Requires GLONGUS_API_KEY.',
     inputSchema: {
       listing_id: z.string().startsWith('lst_').describe('Listing id'),
     },
