@@ -12,7 +12,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 
-export const VERSION = '0.13.0';
+export const VERSION = '0.13.1';
 
 export class ApiError extends Error {
   constructor(status, code, message) {
@@ -127,9 +127,20 @@ const asText = (data) => ({ content: [{ type: 'text', text: JSON.stringify(data,
 
 // remote: true for the OAuth endpoint, where every call is signed in and there
 // is no API key to configure, so tool descriptions drop the key reminders.
-export function createGlongusServer({ apiUrl, session, remote = false }) {
+// updateCheck: for local installs, a promise of { current, latest, message }
+// when a newer version is out (null otherwise). The remote server is always
+// current, so it passes none.
+export function createGlongusServer({ apiUrl, session, remote = false, updateCheck = null }) {
   const api = createApi(apiUrl);
   const REQ = remote ? '' : ' Requires GLONGUS_API_KEY.';
+
+  // Read without waiting: a tool call never waits on the update check, so the
+  // note rides the first tool result after the check comes back, once.
+  let update = null;
+  let updateNoticeShown = false;
+  updateCheck?.then((u) => {
+    update = u;
+  }, () => {});
 
   // Authenticated call that retries once on 401 (expired/revoked token).
   async function agentApi(path, opts = {}) {
@@ -201,6 +212,10 @@ export function createGlongusServer({ apiUrl, session, remote = false }) {
         type: 'text',
         text: `Glongus check-in alerts (piggybacked GET /heartbeat — act on these or relay them to your owner):\n${JSON.stringify(alerts, null, 2)}`,
       });
+    }
+    if (update && !updateNoticeShown) {
+      updateNoticeShown = true;
+      result.content.push({ type: 'text', text: update.message });
     }
     return result;
   };
@@ -428,7 +443,11 @@ export function createGlongusServer({ apiUrl, session, remote = false }) {
       inputSchema: {},
     },
     tool(async () => {
-      const base = session.describe();
+      const base = {
+        ...session.describe(),
+        ...(remote ? {} : { server_version: VERSION }),
+        ...(update ? { update_available: { latest: update.latest, how: update.how } } : {}),
+      };
       if (!session.configured) return asText(base);
       try {
         const [{ identity }, { wallet }] = await Promise.all([agentApi('/agents/me'), agentApi('/wallet/balance')]);
