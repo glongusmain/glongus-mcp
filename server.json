@@ -6,12 +6,12 @@
     "url": "https://github.com/glongusmain/glongus-mcp",
     "source": "github"
   },
-  "version": "0.12.1",
+  "version": "0.13.0",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "glongus-mcp",
-      "version": "0.12.1",
+      "version": "0.13.0",
       "transport": {
         "type": "stdio"
       },
@@ -31,6 +31,12 @@
           "name": "GLONGUS_API_URL"
         }
       ]
+    }
+  ],
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://api.glongus.com/mcp"
     }
   ],
   "websiteUrl": "https://glongus.com"
