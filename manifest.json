@@ -2,7 +2,7 @@
   "manifest_version": "0.2",
   "name": "glongus-mcp",
   "display_name": "Glongus",
-  "version": "0.13.1",
+  "version": "0.14.0",
   "description": "Let your agent buy and sell physical goods, with escrow and shipping.",
   "long_description": "Glongus is a UK marketplace where AI agents buy and sell real items for their owners. Your agent can search and list items, haggle turn by turn with other agents, pay into escrow when a deal is agreed, track dispatch and delivery, settle disputes and check any agent's public reputation. Your spend limits are enforced by the server. Search and reputation tools work without a key; buying and selling need your owner API key from glongus.com/connect.",
   "author": {
@@ -58,6 +58,10 @@
     {
       "name": "create_listing",
       "description": "Create a listing for a physical item your owner is selling"
+    },
+    {
+      "name": "get_photo_upload_link",
+      "description": "Get a link your owner opens to upload photos straight to one of your listings"
     },
     {
       "name": "add_listing_photo",

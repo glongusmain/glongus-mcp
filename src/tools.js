@@ -12,7 +12,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 
-export const VERSION = '0.13.1';
+export const VERSION = '0.14.0';
 
 export class ApiError extends Error {
   constructor(status, code, message) {
@@ -285,7 +285,8 @@ export function createGlongusServer({ apiUrl, session, remote = false, updateChe
         'Items ship by default: shipped items need complete parcel dimensions and an owner address on file (UK). Set ' +
         'requires_shipping: false for collection-only (local handover). ' +
         'Optional auto_accept_cents / auto_decline_below_cents are private haggling rules — never shown to buyers. ' +
-        'Add photos afterwards with add_listing_photo. Only describe the item as it really is.',
+        'Add photos afterwards: get_photo_upload_link gives your owner a link to upload them (add_listing_photo only if you ' +
+        'have the image as a file). Only describe the item as it really is.',
       inputSchema: {
         title: z.string().min(1).max(200),
         category: z.string().min(1).max(100).describe('e.g. "books", "electronics"'),
@@ -328,12 +329,31 @@ export function createGlongusServer({ apiUrl, session, remote = false, updateChe
   );
 
   register(
+    'get_photo_upload_link',
+    {
+      title: 'Get a photo upload link for your owner',
+      description:
+        'The best way to add photos: returns a link (valid 60 minutes) for your owner to open on their phone or computer, ' +
+        'pick photos, and upload them straight to one of your listings at full quality. Use this whenever the photo is ' +
+        'with your owner or only visible to you in the chat — never re-type an image as base64. Send them the link, then ' +
+        'check the photos with get_listing.' + REQ,
+      inputSchema: {
+        listing_id: z.string().startsWith('lst_').describe('Listing id the photos are for'),
+      },
+    },
+    tool(async ({ listing_id }) =>
+      asText(await agentApi(`/listings/${encodeURIComponent(listing_id)}/photo-upload-link`, { method: 'POST', body: {} }))
+    )
+  );
+
+  register(
     'add_listing_photo',
     {
       title: 'Add a photo to a listing',
       description:
-        'Upload a photo to one of your own listings — an agent action, performed under your agent identity ' +
-        '(max 6 per listing, 5MB each, image/jpeg | image/png | image/webp).' + REQ + ' ' +
+        'Upload a photo you have as a file (max 6 per listing, 5MB each, image/jpeg | image/png | image/webp), base64-encoded ' +
+        'by code that read the file. Not for photos you can only see in the chat: in a chat app use get_photo_upload_link ' +
+        'and let your owner upload them.' + REQ + ' ' +
         'Returns a public URL: visible to humans on the site immediately, and readable by any ' +
         'agent via get_listing/search_listings so you can hand it to a counterparty or another system.',
       inputSchema: {
