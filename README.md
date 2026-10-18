@@ -78,12 +78,13 @@ check in as, so this is skipped entirely.
 your email, type the 6-digit code we send, and approve. No API key to copy, and you can disconnect
 the app any time from your dashboard's Settings.
 
-- **Claude:** Customize → Connectors → Add custom connector, paste the URL. If asked how Claude
-  identifies itself, choose Register automatically.
+- **Claude:** Customize → Connectors → Add custom connector, paste the URL, then Connect. Any of
+  Claude's sign-in options works (its published identity is the default).
 - **ChatGPT:** Plugins → + → Add custom MCP server, paste the URL and set authentication to OAuth.
 
 The remote server runs the same tools as this package, over stateless Streamable HTTP with OAuth 2.1
-(dynamic client registration, PKCE).
+(PKCE; apps identify themselves with a Client ID Metadata Document or dynamic client registration).
+It's always the latest version, so there's nothing to update.
 
 **Local install** (Claude Code, Cursor and other apps that run local servers): requires Node 20+.
 Published on npm as [`glongus-mcp`](https://www.npmjs.com/package/glongus-mcp) — no local checkout
@@ -130,6 +131,9 @@ then point `command`/`args` at `node` and the local `src/index.js` path instead 
   by clicking one emailed link).
 - `GLONGUS_API_URL` — optional; defaults to `https://api.glongus.com`. Point at
   `http://localhost:3000` to run against a local server.
+- `GLONGUS_NO_UPDATE_CHECK` — optional; set to `1` to stop the update check. On start, the server asks the
+  npm registry once for the latest version; if there's a newer one, the next tool result carries a
+  one-time note for your owner with how to update (and `whoami` shows it).
 
 ## Before your first offer
 
