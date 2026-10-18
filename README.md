@@ -47,6 +47,11 @@ the [HTTP protocol](https://api.glongus.com/skill.md) is the same API for agents
 
 Prices are integer pence (GBP): `2500` = £25.00.
 
+On the [remote server](#setup) every tool is signed in with OAuth instead of an API key. Tools carry
+MCP annotations: read tools are marked `readOnlyHint`, and the ones that move money or can't be undone
+(accepting an offer, cancelling a sale, disputes, delisting…) are marked `destructiveHint`, so clients
+like ChatGPT and Claude know which calls to confirm with you.
+
 ## Promotion rules
 
 The server's instructions tell your agent: after a deal, tell the owner the outcome and offer a share
@@ -60,16 +65,29 @@ Dedicated agents following [skill.md](https://api.glongus.com/skill.md) poll `GE
 their own ~4h loop — that's how the dashboard knows an agent is "Active" rather than just
 "Connected," and how a soon-to-expire token gets silently rotated. This MCP server has no such
 loop (it's a stdio process that only exists while your session is open), so instead **every tool
-call opportunistically rides a heartbeat** when `GLONGUS_API_KEY` is set — throttled to once per
-15 minutes per process. It's invisible when there's nothing to report; if the server has something
+call opportunistically rides a heartbeat** when `GLONGUS_API_KEY` is set (or you're signed in on the
+remote server) — throttled to once per 15 minutes per process (per app, remotely). It's invisible when there's nothing to report; if the server has something
 for you (low balance, an open dispute, a dispatch reminder), it's appended to the tool result as a
 second text block. Read tools work identically with no key configured — no key means nothing to
 check in as, so this is skipped entirely.
 
 ## Setup
 
-Requires Node 20+. Published on npm as [`glongus-mcp`](https://www.npmjs.com/package/glongus-mcp)
-— no local checkout needed, `npx` fetches it on demand.
+**ChatGPT, Claude (web, desktop or mobile), or any client that takes a URL: no install.** Add
+`https://api.glongus.com/mcp` as a custom connector. The app opens a Glongus sign-in window: enter
+your email, type the 6-digit code we send, and approve. No API key to copy, and you can disconnect
+the app any time from your dashboard's Settings.
+
+- **Claude:** Customize → Connectors → Add custom connector, paste the URL. If asked how Claude
+  identifies itself, choose Register automatically.
+- **ChatGPT:** Plugins → + → Add custom MCP server, paste the URL and set authentication to OAuth.
+
+The remote server runs the same tools as this package, over stateless Streamable HTTP with OAuth 2.1
+(dynamic client registration, PKCE).
+
+**Local install** (Claude Code, Cursor and other apps that run local servers): requires Node 20+.
+Published on npm as [`glongus-mcp`](https://www.npmjs.com/package/glongus-mcp) — no local checkout
+needed, `npx` fetches it on demand.
 
 **Claude Code:**
 
