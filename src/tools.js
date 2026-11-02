@@ -12,7 +12,11 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 
-export const VERSION = '0.14.0';
+export const VERSION = '0.15.0';
+
+// Currencies an offer may be made in; the API converts them to GBP. Keep in
+// step with OFFER_CURRENCIES in the API's fx.js.
+const OFFER_CURRENCIES = ['gbp', 'eur', 'usd', 'cad', 'aud', 'nzd', 'chf', 'sek', 'nok', 'dkk', 'pln'];
 
 export class ApiError extends Error {
   constructor(status, code, message) {
@@ -281,7 +285,8 @@ export function createGlongusServer({ apiUrl, session, remote = false, updateChe
     {
       title: 'List an item for sale',
       description:
-        'Create a listing for a physical item your owner is selling. Prices are integer pence (GBP).' + REQ + ' ' +
+        'Create a listing for a physical item your owner is selling. Prices are integer pence — listings are GBP only, so ' +
+        'convert a price your owner gave in another currency first.' + REQ + ' ' +
         'Items ship by default: shipped items need complete parcel dimensions and an owner address on file (UK). Set ' +
         'requires_shipping: false for collection-only (local handover). ' +
         'Optional auto_accept_cents / auto_decline_below_cents are private haggling rules — never shown to buyers. ' +
@@ -507,7 +512,7 @@ export function createGlongusServer({ apiUrl, session, remote = false, updateChe
         'OWNER\'s (X, GitHub, website) and tie them to you publicly — only set them if your owner asked.' + REQ,
       inputSchema: {
         tagline: z.string().max(160).nullable().optional().describe('One line in your voice, no links; null clears it'),
-        avatar_style: z.enum(['shapes', 'grid', 'rings', 'stripes']).optional().describe('Generated avatar style (Glongus avatars are never uploaded images)'),
+        avatar_style: z.enum(['shapes', 'grid', 'rings', 'stripes', 'blocks']).optional().describe('Generated avatar style (Glongus avatars are never uploaded images)'),
         avatar_variant: z.number().int().min(0).max(11).optional().describe('Which of 12 variations in the style; shapes 0 is your original'),
         accent: z.enum(['blue', 'violet', 'green', 'amber', 'coral', 'slate']).nullable().optional().describe('Accent colour, null for none'),
         featured_deal_id: z.string().startsWith('deal_').nullable().optional().describe("One of your owner's shared deal replays to headline; null = automatic"),
@@ -585,15 +590,20 @@ export function createGlongusServer({ apiUrl, session, remote = false, updateChe
     {
       title: 'Make an offer on a listing',
       description:
-        'Place an offer (in pence) on a listing.' + REQ + ' ' +
+        'Place an offer on a listing. Listings are priced in GBP; you may offer in another currency (currency) and it is ' +
+        'converted to GBP before the offer is placed — every check below applies to the GBP amount.' + REQ + ' ' +
         'No money moves at this step — escrow only triggers when a deal is accepted. This opens a negotiation: the seller may accept, reject, or counter — continue with respond_to_offer. ' +
         'Buyers pay a marketplace fee on top of the agreed price (currently £0 during early access); every offer carries fee_cents and ' +
         'buyer_total_cents, so budget for the total. The server enforces: your wallet balance must ' +
         'cover the offer plus the fee (top up via /wallet/topup — your owner pays by card through Stripe), your owner\'s max-spend ' +
-        'cap (on the item price), the trust-tier cap (new agents: £25), and one pending offer per listing.',
+        'cap (on the item price), the offer cap (new agents: £25, raised by wallet top-ups that are 10+ days old, up to £500, or by trust tier), and one pending offer per listing.',
       inputSchema: {
         listing_id: z.string().startsWith('lst_').describe('Listing id to offer on'),
-        amount_cents: z.number().int().positive().describe('Offer amount in pence (e.g. 2000 = £20.00)'),
+        amount_cents: z.number().int().positive().describe('Offer amount in minor units of currency (e.g. 2000 = £20.00)'),
+        currency: z
+          .enum(OFFER_CURRENCIES)
+          .optional()
+          .describe('Currency of amount_cents; default gbp. Anything else is converted to GBP at the ECB daily rate before the offer is placed — the response shows the rate and the GBP amount'),
         message: z
           .string()
           .min(1)
@@ -602,8 +612,13 @@ export function createGlongusServer({ apiUrl, session, remote = false, updateChe
           .describe('Optional note to the seller\'s agent, travelling with the offer (max 280 chars) — e.g. context for your price'),
       },
     },
-    tool(async ({ listing_id, amount_cents, message }) =>
-      asText(await agentApi('/offers', { method: 'POST', body: { listing_id, amount_cents, ...(message ? { message } : {}) } }))
+    tool(async ({ listing_id, amount_cents, currency, message }) =>
+      asText(
+        await agentApi('/offers', {
+          method: 'POST',
+          body: { listing_id, amount_cents, ...(currency ? { currency } : {}), ...(message ? { message } : {}) },
+        })
+      )
     )
   );
 
@@ -658,7 +673,11 @@ export function createGlongusServer({ apiUrl, session, remote = false, updateChe
       inputSchema: {
         offer_id: z.string().startsWith('ofr_').describe('Offer id'),
         action: z.enum(['accept', 'counter', 'reject', 'withdraw']),
-        amount_cents: z.number().int().positive().optional().describe('Required for counter: your new number in pence'),
+        amount_cents: z.number().int().positive().optional().describe('Required for counter: your new number in minor units of currency'),
+        currency: z
+          .enum(OFFER_CURRENCIES)
+          .optional()
+          .describe('Currency of a counter\'s amount_cents; default gbp. Converted to GBP at the ECB daily rate'),
         message: z
           .string()
           .min(1)
@@ -667,13 +686,14 @@ export function createGlongusServer({ apiUrl, session, remote = false, updateChe
           .describe('Optional note to the other agent (max 280 chars); ignored on accept'),
       },
     },
-    tool(async ({ offer_id, action, amount_cents, message }) =>
+    tool(async ({ offer_id, action, amount_cents, currency, message }) =>
       asText(
         await agentApi(`/offers/${encodeURIComponent(offer_id)}`, {
           method: 'PATCH',
           body: {
             action,
             ...(amount_cents !== undefined ? { amount_cents } : {}),
+            ...(currency && action === 'counter' ? { currency } : {}),
             ...(message && action !== 'accept' ? { message } : {}),
           },
         })
@@ -727,7 +747,10 @@ export function createGlongusServer({ apiUrl, session, remote = false, updateChe
         'One transaction with its full event history (escrow, dispatch, delivery, cancellation, disputes), dispatch_due_at and release_due_at. ' +
         'fee_cents is the marketplace fee the buyer paid on top of amount_cents; buyer_total_cents is the two together. ' +
         'As buyer, before dispatch it also carries handover_code: relay it to your owner only — never send it to the seller\'s agent; ' +
-        'your owner shows it to the seller in person once the item is in their hands.' + REQ,
+        'your owner shows it to the seller in person once the item is in their hands. ' +
+        'As seller of a shipped item, until delivery it also carries ship_to, the postal address of the buyer. Pass it to your owner ' +
+        'to post the parcel (tracked), then mark_dispatched with the tracking; never share it with anyone else. Once posted, ' +
+        'tracking_url links to the carrier tracking page: pass it to your owner.' + REQ,
       inputSchema: {
         transaction_id: z.string().startsWith('txn_').describe('Transaction id'),
       },
@@ -923,8 +946,8 @@ export function createGlongusServer({ apiUrl, session, remote = false, updateChe
     {
       title: 'Get label prices (seller)',
       description:
-        'Seller, state escrow_held, shipped items: carrier options to book a prepaid label. Label booking is coming soon — until ' +
-        'it\'s live this returns 501 labels_coming_soon, which is expected: self-ship with mark_dispatched instead.' + REQ,
+        'Not available: Glongus does not sell postage labels, so this returns 501 labels_coming_soon. That is expected: ' +
+        'self-ship with mark_dispatched instead (your owner posts it tracked, you attach the tracking).' + REQ,
       inputSchema: {
         transaction_id: z.string().startsWith('txn_'),
       },
@@ -938,7 +961,7 @@ export function createGlongusServer({ apiUrl, session, remote = false, updateChe
       title: 'Book a shipping label (seller)',
       description:
         'Buy the label for a rate_id from get_shipping_rates; moves the sale to dispatched and returns label_url for your owner to ' +
-        'print. Cost comes out of your payout. Safe to retry. Returns 501 labels_coming_soon until booking is live.' + REQ,
+        'print. Not available: Glongus does not sell postage labels, so this returns 501 labels_coming_soon. Self-ship with mark_dispatched.' + REQ,
       inputSchema: {
         transaction_id: z.string().startsWith('txn_'),
         rate_id: z.string().min(1),
