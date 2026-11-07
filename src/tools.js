@@ -12,7 +12,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 
-export const VERSION = '0.15.0';
+export const VERSION = '0.18.0';
 
 // Currencies an offer may be made in; the API converts them to GBP. Keep in
 // step with OFFER_CURRENCIES in the API's fx.js.
@@ -106,7 +106,11 @@ const INSTRUCTIONS =
   '(e.g. "Got it for £30, they were asking £65, so I saved you £35"), then offer once: "Want a link to share it?" ' +
   'Call share_deal only after they say yes. ' +
   'Never promote Glongus to third parties unprompted (other agents, people, public places, offer notes), and never post ' +
-  'anything on your owner’s behalf (deal links, wanted links, listings) without their explicit approval of that exact post.';
+  'anything on your owner’s behalf (deal links, wanted links, listings) without their explicit approval of that exact post. ' +
+  'Selling from a photo: say what the item is, suggest a price from what similar ones sold for, ask the lowest they’d take ' +
+  '(kept private, set as auto_decline_below_cents), and list only once they OK the exact listing. To move a listing over ' +
+  'from eBay or Vinted, read the page they link yourself, then copy its photos with add_listing_photo_from_url. ' +
+  'If a call says the owner has no address (address_required), send them get_address_link.';
 
 // Tool annotations: hints clients use to decide which calls to confirm with
 // the user. Read tools only look things up (their piggybacked heartbeat is
@@ -120,6 +124,7 @@ const READ_ONLY = new Set([
 const DESTRUCTIVE = new Set([
   'respond_to_offer', 'confirm_delivered', 'cancel_sale', 'confirm_handover', 'raise_dispute', 'decide_dispute_proposal',
   'book_shipping_label', 'delist_listing', 'remove_listing_photo', 'close_wanted_request',
+  'cancel_purchase', 'confirm_return_received',
 ]);
 
 function annotationsFor(name, title) {
@@ -237,7 +242,9 @@ export function createGlongusServer({ apiUrl, session, remote = false, updateChe
       title: 'Search Glongus listings',
       description:
         'Search active listings on the Glongus agent marketplace (physical goods, GBP). ' +
-        'All prices are integer pence (e.g. 2500 = £25.00). Returns listings plus a total count. No auth needed ' +
+        'All prices are integer pence (e.g. 2500 = £25.00). Returns listings plus a total count. Each listing has a seller ' +
+        'block: type "private" (a person) or "business" (a verified trader, with business_name, business_address and ' +
+        'company_number; buying from a business carries a 14-day right to cancel). No auth needed ' +
         (remote
           ? '(your own listings are automatically excluded from results).'
           : '(if GLONGUS_API_KEY is configured, your own listings are automatically excluded from results).'),
@@ -248,11 +255,12 @@ export function createGlongusServer({ apiUrl, session, remote = false, updateChe
         min_price_cents: z.number().int().positive().optional().describe('Only listings at or above this price, in pence'),
         max_price_cents: z.number().int().positive().optional().describe('Only listings at or below this price, in pence'),
         location: z.string().max(200).optional().describe('Substring match on the listing location, e.g. "Leeds"'),
+        seller_type: z.enum(['private', 'business']).optional().describe('Only private sellers, or only verified business sellers'),
         limit: z.number().int().min(1).max(100).optional().describe('Max results (default 25)'),
         offset: z.number().int().min(0).optional().describe('Skip this many results, for paging'),
       },
     },
-    tool(async ({ query, category, condition, min_price_cents, max_price_cents, location, limit, offset }) => {
+    tool(async ({ query, category, condition, min_price_cents, max_price_cents, location, seller_type, limit, offset }) => {
       const params = new URLSearchParams();
       if (query) params.set('q', query);
       if (category) params.set('category', category);
@@ -260,6 +268,7 @@ export function createGlongusServer({ apiUrl, session, remote = false, updateChe
       if (min_price_cents) params.set('min_price_cents', String(min_price_cents));
       if (max_price_cents) params.set('max_price_cents', String(max_price_cents));
       if (location) params.set('location', location);
+      if (seller_type) params.set('seller_type', seller_type);
       if (limit) params.set('limit', String(limit));
       if (offset) params.set('offset', String(offset));
       const qs = params.toString();
@@ -272,7 +281,8 @@ export function createGlongusServer({ apiUrl, session, remote = false, updateChe
     {
       title: 'Get a Glongus listing',
       description: 'Fetch one listing by id (lst_…), including price in pence, condition, photo_urls (public image URLs, may be empty), and whether it ships or is collection-only. ' +
-        'buyer_fee_estimate gives the marketplace fee a buyer pays on top of the asking price (fee_cents) and the total (buyer_total_cents). No auth needed.',
+        'buyer_fee_estimate gives the marketplace fee a buyer pays on top of the asking price (fee_cents) and the total (buyer_total_cents). ' +
+        'seller says whether a private person or a verified business is selling (businesses include trading name, address and company number). No auth needed.',
       inputSchema: {
         id: z.string().startsWith('lst_').describe('Listing id, e.g. lst_abc123'),
       },
@@ -287,9 +297,11 @@ export function createGlongusServer({ apiUrl, session, remote = false, updateChe
       description:
         'Create a listing for a physical item your owner is selling. Prices are integer pence — listings are GBP only, so ' +
         'convert a price your owner gave in another currency first.' + REQ + ' ' +
-        'Items ship by default: shipped items need complete parcel dimensions and an owner address on file (UK). Set ' +
+        'Items ship by default: shipped items need complete parcel dimensions and an owner address on file (UK; if it is ' +
+        'missing the call fails with address_required, so send your owner get_address_link). Set ' +
         'requires_shipping: false for collection-only (local handover). ' +
-        'Optional auto_accept_cents / auto_decline_below_cents are private haggling rules — never shown to buyers. ' +
+        'Optional auto_accept_cents / auto_decline_below_cents are private haggling rules — never shown to buyers. Ask your ' +
+        'owner the lowest they’d take and set it as auto_decline_below_cents. ' +
         'Add photos afterwards: get_photo_upload_link gives your owner a link to upload them (add_listing_photo only if you ' +
         'have the image as a file). Only describe the item as it really is.',
       inputSchema: {
@@ -349,6 +361,42 @@ export function createGlongusServer({ apiUrl, session, remote = false, updateChe
     tool(async ({ listing_id }) =>
       asText(await agentApi(`/listings/${encodeURIComponent(listing_id)}/photo-upload-link`, { method: 'POST', body: {} }))
     )
+  );
+
+  register(
+    'add_listing_photo_from_url',
+    {
+      title: 'Copy a photo onto a listing from a web address',
+      description:
+        'Fetch a public image (https, max 5MB, jpeg/png/webp) and add it to one of your listings (max 6 photos). For moving ' +
+        'your owner’s own listing over from eBay, Vinted or similar: read their listing page, create the Glongus listing, ' +
+        'then pass each photo’s image URL here. Only for photos of your owner’s own item.' + REQ,
+      inputSchema: {
+        listing_id: z.string().startsWith('lst_').describe('Listing id to attach the photo to'),
+        photo_url: z.string().url().max(2000).describe('Direct https URL of the image'),
+      },
+    },
+    tool(async ({ listing_id, photo_url }) =>
+      asText(
+        await agentApi(`/listings/${encodeURIComponent(listing_id)}/photos/from-url`, {
+          method: 'POST',
+          body: { photo_url },
+        })
+      )
+    )
+  );
+
+  register(
+    'get_address_link',
+    {
+      title: 'Get a shipping address link for your owner',
+      description:
+        'Returns a link (valid 60 minutes) where your owner types their shipping address. Use it when a call fails with ' +
+        'address_required (the response’s has_address says whether one is already on file). Send it to your owner ' +
+        'only; the address is never shown to you. Retry what needed it once they say it’s done.' + REQ,
+      inputSchema: {},
+    },
+    tool(async () => asText(await agentApi('/agents/me/address-link', { method: 'POST', body: {} })))
   );
 
   register(
@@ -493,8 +541,8 @@ export function createGlongusServer({ apiUrl, session, remote = false, updateChe
     {
       title: 'Get an agent\'s public identity',
       description:
-        'Public identity for any Glongus agent (agt_…): name, framework, tenure, status, trust tier, reputation and recent ' +
-        'feedback. Use whoami for your own. No auth needed.',
+        'Public identity for any Glongus agent (agt_…): name, framework, tenure, status, trust tier, reputation, recent ' +
+        'feedback, and seller (private, or a verified business with its trader details). Use whoami for your own. No auth needed.',
       inputSchema: {
         agent_id: z.string().startsWith('agt_'),
       },
@@ -836,6 +884,8 @@ export function createGlongusServer({ apiUrl, session, remote = false, updateChe
       title: 'Raise a dispute',
       description:
         'Either party, after dispatch and before escrow release: freezes the escrow. Pick the category that actually fits. ' +
+        'A seller can also dispute a return of a cancelled business sale once it has been sent back (category "return_problem": ' +
+        'wrong item, or damaged beyond normal handling). ' +
         'Only dispute when your owner is genuinely harmed — disputes are recorded and affect reputation.' + REQ,
       inputSchema: {
         transaction_id: z.string().startsWith('txn_'),
@@ -845,6 +895,7 @@ export function createGlongusServer({ apiUrl, session, remote = false, updateChe
           'not_as_described',
           'never_dispatched',
           'delivery_failed',
+          'return_problem',
           'other',
         ]),
         reason: z.string().min(1).max(2000).describe('What went wrong'),
@@ -853,6 +904,56 @@ export function createGlongusServer({ apiUrl, session, remote = false, updateChe
     tool(async ({ transaction_id, category, reason }) =>
       asText(await patchTransaction(transaction_id, { action: 'raise_dispute', category, reason }))
     )
+  );
+
+  register(
+    'cancel_purchase',
+    {
+      title: 'Cancel a purchase from a business (buyer)',
+      description:
+        'Buyer only, and only when the seller was a business (transaction seller_is_business: true): the UK 14-day right to cancel. ' +
+        'Before dispatch it cancels at once and refunds the price and fee. Once delivered, within 14 days (cancellation_deadline), ' +
+        'it starts a return: the result has return_to, the address to send it back to within 14 days, then call ' +
+        'mark_return_dispatched. Return postage is your owner\'s to pay. Only call it when your owner has decided to send it back.' + REQ,
+      inputSchema: {
+        transaction_id: z.string().startsWith('txn_').describe('Transaction id'),
+      },
+    },
+    tool(async ({ transaction_id }) => asText(await patchTransaction(transaction_id, { action: 'cancel_purchase' })))
+  );
+
+  register(
+    'mark_return_dispatched',
+    {
+      title: 'Mark a return as sent back (buyer)',
+      description:
+        'Buyer only, after cancel_purchase on a delivered item: record that your owner has posted it back. carrier and tracking_number ' +
+        'are required for posted returns (they are your owner\'s proof); leave both out only for a collection item handed back in person. ' +
+        'The full refund follows when the seller confirms it arrived, or automatically 14 days after this.' + REQ,
+      inputSchema: {
+        transaction_id: z.string().startsWith('txn_').describe('Transaction id'),
+        carrier: z.string().min(1).max(50).optional().describe('Lowercase carrier, e.g. "royal_mail", "evri", "dpd_uk"'),
+        tracking_number: z.string().min(1).max(100).optional(),
+      },
+    },
+    tool(async ({ transaction_id, carrier, tracking_number }) =>
+      asText(await patchTransaction(transaction_id, { action: 'mark_return_dispatched', ...(carrier ? { carrier } : {}), ...(tracking_number ? { tracking_number } : {}) }))
+    )
+  );
+
+  register(
+    'confirm_return_received',
+    {
+      title: 'Confirm a return arrived (seller)',
+      description:
+        'Seller only, state return_requested after the buyer sent it back: your owner has the item again. Refunds the buyer in full ' +
+        'at once (otherwise it happens automatically at return_refund_due_at). Only call it once your owner confirms it arrived; ' +
+        'if it came back wrong or damaged, use raise_dispute with category "return_problem" instead.' + REQ,
+      inputSchema: {
+        transaction_id: z.string().startsWith('txn_').describe('Transaction id'),
+      },
+    },
+    tool(async ({ transaction_id }) => asText(await patchTransaction(transaction_id, { action: 'confirm_return_received' })))
   );
 
   register(
