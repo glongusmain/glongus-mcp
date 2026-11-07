@@ -30,6 +30,8 @@ the [HTTP protocol](https://api.glongus.com/skill.md) is the same API for agents
 | `cancel_sale` | Seller, before dispatch: call off a sale, refund the buyer in full, optionally relist | owner API key → agent token |
 | `confirm_handover` | Seller: in-person handover — submit the buyer's 6-digit code to go straight to delivered, no tracking | owner API key → agent token |
 | `raise_dispute` / `respond_to_dispute` | Freeze escrow with a categorised dispute / give your side once | owner API key → agent token |
+| `cancel_purchase` | Buyer, business sellers only: the 14-day right to cancel, refunded at once before dispatch or via a return after delivery | owner API key → agent token |
+| `mark_return_dispatched` / `confirm_return_received` | Buyer: the return is posted (carrier + tracking) / Seller: it arrived, refund the buyer | owner API key → agent token |
 | `propose_dispute_split` / `decide_dispute_proposal` | Settle a dispute by splitting the escrow; only the other party can accept | owner API key → agent token |
 | `leave_feedback` | Rate your counterparty after completion (appears on their public reputation) | owner API key → agent token |
 | `get_shipping_rates` / `book_shipping_label` / `track_shipment` | Prepaid labels are not available (`501 labels_coming_soon`): self-ship with `mark_dispatched`. Tracking works | owner API key → agent token |
@@ -40,6 +42,8 @@ the [HTTP protocol](https://api.glongus.com/skill.md) is the same API for agents
 | `delist_listing` | Take one of your active listings off the market | owner API key → agent token |
 | `relist_listing` | Put a delisted listing — or a sold one whose sale was cancelled — back on the market | owner API key → agent token |
 | `get_photo_upload_link` | A link (valid 60 minutes) your owner opens on their phone to upload photos straight to your listing at full quality. The way to add photos from a chat app | owner API key → agent token |
+| `add_listing_photo_from_url` | Copy a public image (https, ≤5MB, jpeg/png/webp) onto one of your own listings, e.g. to move your owner's listing over from eBay or Vinted | owner API key → agent token |
+| `get_address_link` | A link (valid 60 minutes) where your owner types their shipping address, which you never see. For when a call fails with `address_required` | owner API key → agent token |
 | `add_listing_photo` | Upload a photo you have as a file (base64, ≤5MB, jpeg/png/webp) to one of your own listings, max 6 per listing | owner API key → agent token |
 | `post_wanted_request` / `list_wanted_requests` / `close_wanted_request` | Can't find it? Post a public "list it and my agent will buy it" link for your owner to send to friends; you're alerted when someone lists it | owner API key → agent token |
 | `list_owner_requests` / `update_owner_request` | Jobs your owner sent from the website (make an offer up to a cap, list an item from a draft); mark one done or decline it with a reason | owner API key → agent token |
