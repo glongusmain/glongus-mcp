@@ -12,7 +12,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 
-export const VERSION = '0.18.0';
+export const VERSION = '0.19.0';
 
 // Currencies an offer may be made in; the API converts them to GBP. Keep in
 // step with OFFER_CURRENCIES in the API's fx.js.
@@ -109,7 +109,8 @@ const INSTRUCTIONS =
   'anything on your owner’s behalf (deal links, wanted links, listings) without their explicit approval of that exact post. ' +
   'Selling from a photo: say what the item is, suggest a price from what similar ones sold for, ask the lowest they’d take ' +
   '(kept private, set as auto_decline_below_cents), and list only once they OK the exact listing. To move a listing over ' +
-  'from eBay or Vinted, read the page they link yourself, then copy its photos with add_listing_photo_from_url. ' +
+  'from eBay or Vinted, eBay usually blocks fetching the link, so ask for screenshots of their listing and read the details ' +
+  'from those, then add photos with get_photo_upload_link (or add_listing_photo_from_url if you have direct image URLs). ' +
   'If a call says the owner has no address (address_required), send them get_address_link.';
 
 // Tool annotations: hints clients use to decide which calls to confirm with
@@ -302,8 +303,9 @@ export function createGlongusServer({ apiUrl, session, remote = false, updateChe
         'requires_shipping: false for collection-only (local handover). ' +
         'Optional auto_accept_cents / auto_decline_below_cents are private haggling rules — never shown to buyers. Ask your ' +
         'owner the lowest they’d take and set it as auto_decline_below_cents. ' +
-        'Add photos afterwards: get_photo_upload_link gives your owner a link to upload them (add_listing_photo only if you ' +
-        'have the image as a file). Only describe the item as it really is.',
+        'The response includes photo_upload.url: send it to your owner right away so they can add photos from their phone ' +
+        '(photos shared in the chat can’t be attached directly; get_photo_upload_link makes a fresh link later, and ' +
+        'add_listing_photo is only for images you have as a file). Only describe the item as it really is.',
       inputSchema: {
         title: z.string().min(1).max(200),
         category: z.string().min(1).max(100).describe('e.g. "books", "electronics"'),
@@ -369,8 +371,8 @@ export function createGlongusServer({ apiUrl, session, remote = false, updateChe
       title: 'Copy a photo onto a listing from a web address',
       description:
         'Fetch a public image (https, max 5MB, jpeg/png/webp) and add it to one of your listings (max 6 photos). For moving ' +
-        'your owner’s own listing over from eBay, Vinted or similar: read their listing page, create the Glongus listing, ' +
-        'then pass each photo’s image URL here. Only for photos of your owner’s own item.' + REQ,
+        'your owner’s own listing over from eBay, Vinted or similar, when you have the direct image URLs (eBay usually ' +
+        'blocks fetching its pages; then use get_photo_upload_link instead). Only for photos of your owner’s own item.' + REQ,
       inputSchema: {
         listing_id: z.string().startsWith('lst_').describe('Listing id to attach the photo to'),
         photo_url: z.string().url().max(2000).describe('Direct https URL of the image'),
@@ -612,7 +614,9 @@ export function createGlongusServer({ apiUrl, session, remote = false, updateChe
       title: 'Start a wallet top-up',
       description:
         'Start a deposit into your owner\'s wallet (pence, min 100). Returns a payment_url — send it to your owner; they pay by ' +
-        'card and the wallet credits automatically within seconds. Check it landed with whoami. You never pay yourself.' +
+        'card and the wallet credits automatically within seconds. Check it landed with whoami. You never pay yourself. ' +
+        'You rarely need this: when an offer needs more than the wallet holds, create_offer and respond_to_offer return a payment link for the difference themselves. ' +
+        'Unused card money can be refunded to the card by your owner, from the Wallet page of their dashboard.' +
         REQ,
       inputSchema: {
         amount_cents: z.number().int().min(100).describe('Amount in pence, e.g. 2000 = £20.00'),
@@ -642,8 +646,10 @@ export function createGlongusServer({ apiUrl, session, remote = false, updateChe
         'converted to GBP before the offer is placed — every check below applies to the GBP amount.' + REQ + ' ' +
         'No money moves at this step — escrow only triggers when a deal is accepted. This opens a negotiation: the seller may accept, reject, or counter — continue with respond_to_offer. ' +
         'Buyers pay a marketplace fee on top of the agreed price (currently £0 during early access); every offer carries fee_cents and ' +
-        'buyer_total_cents, so budget for the total. The server enforces: your wallet balance must ' +
-        'cover the offer plus the fee (top up via /wallet/topup — your owner pays by card through Stripe), your owner\'s max-spend ' +
+        'buyer_total_cents, so budget for the total. If the wallet does not cover the offer plus the fee, the result is ' +
+        'status "payment_required" with a payment_url instead of an offer: NOTHING IS PLACED YET. Send your owner that link and stop — when they pay, ' +
+        'the offer is placed automatically. Do not call again and do not use top_up_wallet as well. Check list_offers once they say they have paid. ' +
+        'The server also enforces your owner\'s max-spend ' +
         'cap (on the item price), the offer cap (new agents: £25, raised by wallet top-ups that are 10+ days old, up to £500, or by trust tier), and one pending offer per listing.',
       inputSchema: {
         listing_id: z.string().startsWith('lst_').describe('Listing id to offer on'),
@@ -716,7 +722,9 @@ export function createGlongusServer({ apiUrl, session, remote = false, updateChe
         '"counter" puts down a new number (amount_cents, required) — bids only go up, asks only come down, and a counter must ' +
         'land strictly between the two standing numbers (see next_move from get_offer). Any time: the seller may "reject", ' +
         'the buyer may "withdraw". 20 moves max per negotiation; 72h to answer each move. Your owner\'s spend caps apply to ' +
-        'every bid and accept. Be polite in your notes. After an accept closes the deal, tell your owner the outcome and offer ' +
+        'every bid and accept. If the wallet is short for a counter or an accept you get status "payment_required" with a payment_url: ' +
+        'send it to your owner and stop — the move is made automatically when they pay, do not retry. ' +
+        'Be polite in your notes. After an accept closes the deal, tell your owner the outcome and offer ' +
         'a share link once (share_deal, only on their yes).' + REQ,
       inputSchema: {
         offer_id: z.string().startsWith('ofr_').describe('Offer id'),
