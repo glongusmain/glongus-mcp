@@ -12,7 +12,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 
-export const VERSION = '0.19.0';
+export const VERSION = '0.19.1';
 
 // Currencies an offer may be made in; the API converts them to GBP. Keep in
 // step with OFFER_CURRENCIES in the API's fx.js.
@@ -301,8 +301,10 @@ export function createGlongusServer({ apiUrl, session, remote = false, updateChe
         'Items ship by default: shipped items need complete parcel dimensions and an owner address on file (UK; if it is ' +
         'missing the call fails with address_required, so send your owner get_address_link). Set ' +
         'requires_shipping: false for collection-only (local handover). ' +
-        'Optional auto_accept_cents / auto_decline_below_cents are private haggling rules — never shown to buyers. Ask your ' +
-        'owner the lowest they’d take and set it as auto_decline_below_cents. ' +
+        'Optional auto_accept_cents / auto_decline_below_cents are haggling rules; buyers never see the numbers. Ask your ' +
+        'owner the lowest they’d take and set it as auto_decline_below_cents. Setting auto_accept_cents also turns on buy now: ' +
+        'the listing shows buy_now: true and anyone can buy it at the full asking price by card, with no haggling and no account. ' +
+        'Tell your owner this before you set one. ' +
         'The response includes photo_upload.url: send it to your owner right away so they can add photos from their phone ' +
         '(photos shared in the chat can’t be attached directly; get_photo_upload_link makes a fresh link later, and ' +
         'add_listing_photo is only for images you have as a file). Only describe the item as it really is.',
@@ -335,7 +337,7 @@ export function createGlongusServer({ apiUrl, session, remote = false, updateChe
           .describe(
             "Hours the buyer's payment is held after delivery before release (their dispute window), shown to buyers. Default and floor = your tier's window for shipped items (new 168, established 48, trusted 24); handovers can use 24"
           ),
-        auto_accept_cents: z.number().int().positive().optional().describe('Auto-accept offers at or above this (≤ price)'),
+        auto_accept_cents: z.number().int().positive().optional().describe('Auto-accept offers at or above this (≤ price). Also turns on buy now at the asking price'),
         auto_decline_below_cents: z.number().int().positive().optional().describe('Auto-decline offers below this'),
         wanted_id: z
           .string()
@@ -450,7 +452,9 @@ export function createGlongusServer({ apiUrl, session, remote = false, updateChe
       title: 'Edit one of your listings',
       description:
         'Change fields on one of your own listings; only the fields you pass change. Sold listings are locked while their sale ' +
-        'is live. Pass null for auto_accept_cents / auto_decline_below_cents to clear a rule. To take a listing off or put it back ' +
+        'is live. Pass null for auto_accept_cents / auto_decline_below_cents to clear a rule. Setting auto_accept_cents turns on ' +
+        'buy now (buy_now: true: anyone can buy at the full asking price by card, with no haggling); null turns it off. Tell your ' +
+        'owner before you turn it on. To take a listing off or put it back ' +
         'on the market use delist_listing / relist_listing.' + REQ,
       inputSchema: {
         listing_id: z.string().startsWith('lst_'),
@@ -470,7 +474,8 @@ export function createGlongusServer({ apiUrl, session, remote = false, updateChe
           .optional(),
         dispatch_window_hours: z.number().int().min(24).max(336).optional(),
         escrow_hours: escrowHours.optional().describe('Escrow window after delivery; fixed once the item sells'),
-        auto_accept_cents: z.number().int().positive().nullable().optional(),
+        auto_accept_cents: z.number().int().positive().nullable().optional()
+          .describe('Auto-accept offers at or above this (≤ price). Also turns on buy now; null clears it and turns buy now off'),
         auto_decline_below_cents: z.number().int().positive().nullable().optional(),
       },
     },
